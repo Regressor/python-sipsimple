@@ -973,6 +973,8 @@ PJ_DEF(pj_status_t) pj_ioqueue_sendto( pj_ioqueue_key_t *key,
 			               const pj_sockaddr_t *addr,
 			               int addrlen)
 {
+    PJ_LOG(4,(THIS_FILE, "---- send inside ioq_send_common_abs!"));
+
     struct write_operation *write_op;
     unsigned retry;
     pj_bool_t restart_retry = PJ_FALSE;
@@ -1014,10 +1016,12 @@ retry_on_restart:
          * See if data can be sent immediately.
          */
         sent = *length;
+        PJ_LOG(4,(THIS_FILE, "----------- send udp before!"));
         status = pj_sock_sendto(key->fd, data, &sent, flags, addr, addrlen);
         if (status == PJ_SUCCESS) {
             /* Success! */
             *length = sent;
+	    PJ_LOG(4,(THIS_FILE, "---------- send udp success"));
             return PJ_SUCCESS;
         } else {
             /* If error is not EWOULDBLOCK (or EAGAIN on Linux), report
@@ -1039,6 +1043,7 @@ retry_on_restart:
 		}
 #endif
 
+		PJ_LOG(4,(THIS_FILE, "---------- send udp ret status!"));
                 return status;
             }
         }
@@ -1078,6 +1083,7 @@ retry_on_restart:
 	 * situation like this.
 	 */
 	//pj_assert(!"ioqueue: there is pending operation on this key!");
+        PJ_LOG(4,(THIS_FILE, "---------- send udp EBUSY!"));
 	return PJ_EBUSY;
     }
 
@@ -1096,11 +1102,14 @@ retry_on_restart:
      */
     if (IS_CLOSING(key)) {
 	pj_ioqueue_unlock_key(key);
+        PJ_LOG(4,(THIS_FILE, "---------- send udp CANCELED"));
 	return PJ_ECANCELLED;
     }
     pj_list_insert_before(&key->write_list, write_op);
     ioqueue_add_to_set(key->ioqueue, key, WRITEABLE_EVENT);
     pj_ioqueue_unlock_key(key);
+
+    PJ_LOG(4,(THIS_FILE, "---------- send udp EPENDING"));
 
     return PJ_EPENDING;
 }

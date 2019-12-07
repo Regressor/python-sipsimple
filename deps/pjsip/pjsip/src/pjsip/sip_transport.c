@@ -783,6 +783,7 @@ PJ_DEF(pj_status_t) pjsip_transport_send(  pjsip_transport *tr,
     pj_status_t status;
 
     PJ_ASSERT_RETURN(tr && tdata && addr, PJ_EINVAL);
+    PJ_LOG(4,(THIS_FILE, "---- send ack in transport_send"));
 
     /* Is it currently being sent? */
     if (tdata->is_pending) {
@@ -795,6 +796,7 @@ PJ_DEF(pj_status_t) pjsip_transport_send(  pjsip_transport *tr,
     /* Add reference to prevent deletion, and to cancel idle timer if
      * it's running.
      */
+
     pjsip_transport_add_ref(tr);
 
     /* Fill in tp_info. */
@@ -815,6 +817,7 @@ PJ_DEF(pj_status_t) pjsip_transport_send(  pjsip_transport *tr,
     if (tr->tpmgr->on_tx_msg) {
 	status = (*tr->tpmgr->on_tx_msg)(tr->endpt, tdata);
 	if (status != PJ_SUCCESS) {
+	    PJ_LOG(4,(THIS_FILE, "---- send ack in transport_send - STOP on status!"));
 	    pjsip_transport_dec_ref(tr);
 	    return status;
 	}
@@ -831,12 +834,17 @@ PJ_DEF(pj_status_t) pjsip_transport_send(  pjsip_transport *tr,
     tdata->is_pending = 1;
 
     /* Send to transport. */
+    PJ_LOG(4,(THIS_FILE, "---- send ack in transport_send before send_msg"));
     status = (*tr->send_msg)(tr, tdata,  addr, addr_len, (void*)tdata, 
 			     &transport_send_callback);
 
+    PJ_LOG(4,(THIS_FILE, "---- send ack in transport_send after send_msg"));
     if (status != PJ_EPENDING) {
+	PJ_LOG(4,(THIS_FILE, "---- send ack in transport_send status no PENDING %d", status));
 	tdata->is_pending = 0;
 	pjsip_tx_data_dec_ref(tdata);
+    } else {
+	PJ_LOG(4,(THIS_FILE, "---- send ack in transport_send - status == PENDING"));
     }
 
     pjsip_transport_dec_ref(tr);

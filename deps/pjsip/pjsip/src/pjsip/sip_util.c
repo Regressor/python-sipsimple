@@ -1100,6 +1100,9 @@ static void stateless_send_transport_cb( void *token,
     PJ_UNUSED_ARG(tdata);
     pj_assert(tdata == stateless_data->tdata);
 
+    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: start"));
+
+
     for (;;) {
 	pj_status_t status;
 	pj_bool_t cont;
@@ -1116,6 +1119,7 @@ static void stateless_send_transport_cb( void *token,
 	     * stateless_send_resolver_callback() with sent argument set to
 	     * -PJ_EPENDING.
 	     */
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: cont=true"));
 	    cont = PJ_TRUE;
 	} else {
 	    /* There are two conditions here:
@@ -1124,12 +1128,15 @@ static void stateless_send_transport_cb( void *token,
 	     */
 	    cont = (sent > 0) ? PJ_FALSE :
 		   (tdata->dest_info.cur_addr<tdata->dest_info.addr.count-1);
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: cont=%d", cont));
+
 	    if (stateless_data->app_cb) {
 		(*stateless_data->app_cb)(stateless_data, sent, &cont);
 	    } else {
 		/* Doesn't have application callback.
 		 * Terminate the process.
 		 */
+		PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: cont=false"));
 		cont = PJ_FALSE;
 	    }
 	}
@@ -1138,11 +1145,13 @@ static void stateless_send_transport_cb( void *token,
 	if (stateless_data->cur_transport) {
 	    pjsip_transport_dec_ref(stateless_data->cur_transport);
 	    stateless_data->cur_transport = NULL;
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: transport=NULL"));
 	}
 
 	/* Done if application doesn't want to continue. */
 	if (sent > 0 || !cont) {
 	    pjsip_tx_data_dec_ref(tdata);
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: STOP sent>0 & not cont"));
 	    return;
 	}
 
@@ -1151,6 +1160,7 @@ static void stateless_send_transport_cb( void *token,
 	 */
 	if (sent != -PJ_EPENDING) {
 	    tdata->dest_info.cur_addr++;
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: curr_addr %d", tdata->dest_info.cur_addr));
 	}
 
 	/* Have next address? */
@@ -1161,6 +1171,7 @@ static void stateless_send_transport_cb( void *token,
 	     * call the callback again as application has been informed
 	     * before.
 	     */
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: cur_addr > count CRAP! Exit!"));
 	    pjsip_tx_data_dec_ref(tdata);
 	    return;
 	}
@@ -1179,6 +1190,7 @@ static void stateless_send_transport_cb( void *token,
 						tdata,
 						&stateless_data->cur_transport);
 	if (status != PJ_SUCCESS) {
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: can't acquire transport! STOP!!"));
 	    sent = -status;
 	    continue;
 	}
@@ -1193,6 +1205,7 @@ static void stateless_send_transport_cb( void *token,
 	    pj_assert(!"Via header not found!");
 	    via = pjsip_via_hdr_create(tdata->pool);
 	    pjsip_msg_insert_first_hdr(tdata->msg, (pjsip_hdr*)via);
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: no via header, created new ONE!"));
 	}
 
 	if (via->branch_param.slen == 0) {
@@ -1205,6 +1218,7 @@ static void stateless_send_transport_cb( void *token,
 	    tmp.ptr = via->branch_param.ptr + PJSIP_RFC3261_BRANCH_LEN + 2;
 	    *(tmp.ptr-2) = 80; *(tmp.ptr-1) = 106;
 	    pj_generate_unique_string(&tmp);
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: generated new branch!"));
 	}
 
 	via->transport = pj_str(stateless_data->cur_transport->type_name);
@@ -1220,6 +1234,7 @@ static void stateless_send_transport_cb( void *token,
 	/* Add/remove "alias" param to/from Via header on connection 
 	 * oriented/less transport, if configured.
 	 */
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: before add/remove alias"));
 	if (pjsip_cfg()->endpt.req_has_via_alias &&
 	    tdata->msg->type == PJSIP_REQUEST_MSG)
 	{
@@ -1239,26 +1254,33 @@ static void stateless_send_transport_cb( void *token,
 	    }
 	}
 
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: before invalidate msg"));
 	pjsip_tx_data_invalidate_msg(tdata);
 
 	/* Send message using this transport. */
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: before transport_send"));
 	status = pjsip_transport_send( stateless_data->cur_transport,
 				       tdata,
 				       cur_addr,
 				       cur_addr_len,
 				       stateless_data,
 				       &stateless_send_transport_cb);
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: after transport send"));
 	if (status == PJ_SUCCESS) {
 	    /* Recursively call this function. */
 	    sent = tdata->buf.cur - tdata->buf.start;
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: transport_send success"));
 	    stateless_send_transport_cb( stateless_data, tdata, sent );
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: after send_transport_cb"));
 	    return;
 	} else if (status == PJ_EPENDING) {
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: pjsip_transport_send PENDING!"));
 	    /* This callback will be called later. */
 	    return;
 	} else {
 	    /* Recursively call this function. */
 	    sent = -status;
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside bizz: before send_transport_cb with -status ERROR?"));
 	    stateless_send_transport_cb( stateless_data, tdata, sent );
 	    return;
 	}
@@ -1274,9 +1296,12 @@ stateless_send_resolver_callback( pj_status_t status,
 {
     pjsip_send_state *stateless_data = (pjsip_send_state*) token;
     pjsip_tx_data *tdata = stateless_data->tdata;
+    PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback"));
+
 
     /* Fail on server resolution. */
     if (status != PJ_SUCCESS) {
+	PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback - FAIL ON SERVER RESOLUTION!"));
 	if (stateless_data->app_cb) {
 	    pj_bool_t cont = PJ_FALSE;
 	    (*stateless_data->app_cb)(stateless_data, -status, &cont);
@@ -1289,6 +1314,8 @@ stateless_send_resolver_callback( pj_status_t status,
     if (addr && addr != &tdata->dest_info.addr) {
 	pj_memcpy( &tdata->dest_info.addr, addr, 
 	           sizeof(pjsip_server_addresses));
+
+	PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback - copy server addr %d", tdata->dest_info.addr.count));
     }
     pj_assert(tdata->dest_info.addr.count != 0);
 
@@ -1303,6 +1330,8 @@ stateless_send_resolver_callback( pj_status_t status,
 	tdata->dest_info.addr.count > 0 && 
 	tdata->dest_info.addr.entry[0].type == PJSIP_TRANSPORT_UDP)
     {
+
+	PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback - SWITCHING TO TCP!!!"));
 	int len;
 
 	/* Encode the request */
@@ -1312,6 +1341,7 @@ stateless_send_resolver_callback( pj_status_t status,
 		pj_bool_t cont = PJ_FALSE;
 		(*stateless_data->app_cb)(stateless_data, -status, &cont);
 	    }
+	    PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback - FAIL TO ENCODE REQUEST"));
 	    pjsip_tx_data_dec_ref(tdata);
 	    return;
 	}
@@ -1343,7 +1373,9 @@ stateless_send_resolver_callback( pj_status_t status,
     }
 
     /* Process the addresses. */
+    PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback before send_transport_cb"));
     stateless_send_transport_cb( stateless_data, tdata, -PJ_EPENDING);
+    PJ_LOG(4,(THIS_FILE, "---- send inside stateless_send_resolver_callback after send_transport_cb"));
 }
 
 /*
@@ -1367,8 +1399,10 @@ PJ_DEF(pj_status_t) pjsip_endpt_send_request_stateless(pjsip_endpoint *endpt,
 
     /* Get destination name to contact. */
     status = pjsip_process_route_set(tdata, &dest_info);
-    if (status != PJ_SUCCESS)
+    if (status != PJ_SUCCESS) {
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside send_request_stateless - NOT SUCCESS route set"));
 	return status;
+    }
 
     /* Keep stateless data. */
     stateless_data = PJ_POOL_ZALLOC_T(tdata->pool, pjsip_send_state);
@@ -1395,6 +1429,8 @@ PJ_DEF(pj_status_t) pjsip_endpt_send_request_stateless(pjsip_endpoint *endpt,
 			     pjsip_tx_data_get_info(tdata)));
 	stateless_send_resolver_callback(PJ_SUCCESS, stateless_data,
 					 &tdata->dest_info.addr);
+
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside send_request_stateless - after resolver callback"));
     }
     return PJ_SUCCESS;
 }

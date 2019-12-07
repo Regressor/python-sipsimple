@@ -324,12 +324,21 @@ static pj_status_t udp_send_msg( pjsip_transport *transport,
     pj_ssize_t size;
     pj_status_t status;
 
+    PJ_LOG(4,(THIS_FILE, "---- send ack in udp_send_msg: start"));
+
+
     PJ_ASSERT_RETURN(transport && tdata, PJ_EINVAL);
+    PJ_LOG(4,(THIS_FILE, "---- send ack in udp_send_msg: after assert1"));
     PJ_ASSERT_RETURN(tdata->op_key.tdata == NULL, PJSIP_EPENDINGTX);
+
+    PJ_LOG(4,(THIS_FILE, "---- send ack in udp_send_msg: after assert2"));
     
     /* Return error if transport is paused */
-    if (tp->is_paused)
+    if (tp->is_paused) {
+
+	PJ_LOG(4,(THIS_FILE, "---- send ack in udp_send_msg: tr paused! STOP!"));
 	return PJSIP_ETPNOTAVAIL;
+    }
 
     /* Init op key. */
     tdata->op_key.tdata = tdata;
@@ -338,12 +347,18 @@ static pj_status_t udp_send_msg( pjsip_transport *transport,
 
     /* Send to ioqueue! */
     size = tdata->buf.cur - tdata->buf.start;
+    PJ_LOG(4,(THIS_FILE, "---- send ack before pj_ioqueue_sendto"));
     status = pj_ioqueue_sendto(tp->key, (pj_ioqueue_op_key_t*)&tdata->op_key,
 			       tdata->buf.start, &size, 0,
 			       rem_addr, addr_len);
 
-    if (status != PJ_EPENDING)
+    if (status != PJ_EPENDING) {
+        PJ_LOG(4,(THIS_FILE, "---- send ack after sendto != PEND"));
 	tdata->op_key.tdata = NULL;
+    } else {
+        PJ_LOG(4,(THIS_FILE, "---- send ack after sendto == PEND"));
+
+    }
 
     return status;
 }

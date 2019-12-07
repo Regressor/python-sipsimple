@@ -419,6 +419,8 @@ static pj_status_t inv_send_ack(pjsip_inv_session *inv, pjsip_event *e)
     {
 	pjsip_tx_data_add_ref(inv->last_ack);
 
+	PJ_LOG(4,(THIS_FILE, "---- send ack not pending if"));
+
     } else if (mod_inv.cb.on_send_ack) {
 	/* If application handles ACK transmission manually, just notify the
 	 * callback
@@ -430,6 +432,7 @@ static pj_status_t inv_send_ack(pjsip_inv_session *inv, pjsip_event *e)
 	return PJ_SUCCESS;
 
     } else {
+	PJ_LOG(4,(THIS_FILE, "---- send ack create ack"));
 	status = pjsip_inv_create_ack(inv, rdata->msg_info.cseq->cseq,
 				      &inv->last_ack);
 	if (status != PJ_SUCCESS)
@@ -439,10 +442,13 @@ static pj_status_t inv_send_ack(pjsip_inv_session *inv, pjsip_event *e)
     PJSIP_EVENT_INIT_TX_MSG(ack_e, inv->last_ack);
 
     /* Send ACK */
+    PJ_LOG(4,(THIS_FILE, "---- send ack before dlg_send_request"));
     status = pjsip_dlg_send_request(inv->dlg, inv->last_ack, -1, NULL);
+    PJ_LOG(4,(THIS_FILE, "---- send ack after dlg_send_request"));
     if (status != PJ_SUCCESS) {
 	/* Better luck next time */
 	pj_assert(!"Unable to send ACK!");
+	PJ_LOG(4,(THIS_FILE, "---- send ack UNABLE TO SEND"));
 	return status;
     }
 
@@ -451,6 +457,7 @@ static pj_status_t inv_send_ack(pjsip_inv_session *inv, pjsip_event *e)
      * But don't set it to CONFIRMED if we're already DISCONNECTED
      * (this may have been a late 200/OK response.
      */
+    PJ_LOG(4,(THIS_FILE, "---- send ack CONFIRMED"));
     if (inv->state < PJSIP_INV_STATE_CONFIRMED) {
 	inv_set_state(inv, PJSIP_INV_STATE_CONFIRMED, &ack_e);
     }

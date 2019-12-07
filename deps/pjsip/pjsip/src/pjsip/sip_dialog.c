@@ -1285,14 +1285,20 @@ PJ_DEF(pj_status_t) pjsip_dlg_send_request( pjsip_dialog *dlg,
 	}
 
     } else {
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside dlg_send_request (ACK)"));
+
 	/* Set transport selector */
 	pjsip_tx_data_set_transport(tdata, &dlg->tp_sel);
 
+	PJ_LOG(4,(THIS_FILE, "---- send ack inside dlg_send_request (after set transport)"));
 	/* Send request */
 	status = pjsip_endpt_send_request_stateless(dlg->endpt, tdata,
 						    NULL, NULL);
-	if (status != PJ_SUCCESS)
+	PJ_LOG(4,(THIS_FILE, "---- send ack after send_request_stateless"));
+	if (status != PJ_SUCCESS) {
+	    PJ_LOG(4,(THIS_FILE, "---- send ack inside dlg_send_request (send_request_stateless NOT SUCCESS!!!)"));
 	    goto on_error;
+	}
 
     }
 
